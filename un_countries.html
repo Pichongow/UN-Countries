@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>国連加盟国 面積×人口分布</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #060d1a; color: #e2e8f0; font-family: sans-serif;
+       height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#controls { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; flex-shrink: 0; }
+#row1 { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; }
+#row2 { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; }
+#row3 { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; }
+#chart-area { flex: 1; min-height: 0; position: relative; }
+canvas { display: block; }
+#tooltip { position: fixed; display: none; pointer-events: none; z-index: 200;
+  background: #0f172a; border: 2px solid #ff2d55; border-radius: 10px;
+  padding: 10px 14px; font-size: 12px; color: #f1f5f9; min-width: 160px;
+  box-shadow: 0 4px 20px #ff2d5544; }
+#info { text-align: center; font-size: 10px; color: #475569; }
+button.fbtn { padding: 3px 10px; border-radius: 16px; border: none; cursor: pointer;
+  font-size: 10px; font-weight: 700; transition: all 0.15s; }
+button.tbtn { padding: 3px 14px; border-radius: 16px; border: none; cursor: pointer;
+  font-size: 10px; font-weight: 700; transition: all 0.15s; }
+button.rbtn { padding: 3px 11px; border-radius: 16px; border: none; cursor: pointer;
+  font-size: 10px; font-weight: 700; transition: all 0.15s; }
+#legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.leg { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+<div style="text-align:center;padding:6px 0 2px;flex-shrink:0;">
+  <span style="font-size:15px;font-weight:800;color:#e2e8f0;">🌍 国連加盟国 面積 × 人口 分布図</span>
+  <span style="font-size:10px;color:#475569;margin-left:10px;">UN DESA 2023推計 · 195カ国</span>
+</div>
+<div id="controls">
+  <div id="row1">
+    <div id="filter-btns"></div>
+    <input id="search" placeholder="🔍 国名検索…" oninput="draw()"
+      style="padding:4px 10px;border-radius:9px;font-size:11px;background:#111827;
+             border:1px solid #1f2937;color:#e2e8f0;outline:none;width:130px;">
+  </div>
+  <div id="row2">
+    <div id="scale-btns"></div>
+    <div id="region-btns" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;"></div>
+  </div>
+  <div id="row3">
+    <div id="legend"></div>
+  </div>
+  <div id="info"></div>
+</div>
+<div id="chart-area">
+  <canvas id="c"></canvas>
+</div>
+<div id="cards" style="display:flex;gap:8px;justify-content:center;padding:4px 10px 6px;flex-shrink:0;flex-wrap:wrap;"></div>
+<div id="tooltip"></div>
+
+<script>
+const RAW = [
+  {n:"インド",a:3287263,p:1428628,r:"アジア"},
+  {n:"中国",a:9596960,p:1409670,r:"アジア"},
+  {n:"アメリカ",a:9372610,p:335893,r:"北米"},
+  {n:"インドネシア",a:1904569,p:277534,r:"アジア"},
+  {n:"パキスタン",a:796095,p:231402,r:"アジア"},
+  {n:"ナイジェリア",a:923768,p:223804,r:"アフリカ"},
+  {n:"ブラジル",a:8515767,p:215313,r:"南米"},
+  {n:"バングラデシュ",a:147570,p:172954,r:"アジア"},
+  {n:"ロシア",a:17098242,p:144444,r:"欧州"},
+  {n:"メキシコ",a:1964375,p:128455,r:"北米"},
+  {n:"エチオピア",a:1104300,p:126527,r:"アフリカ"},
+  {n:"日本",a:377915,p:124352,r:"アジア"},
+  {n:"フィリピン",a:300000,p:117337,r:"アジア"},
+  {n:"エジプト",a:1001449,p:105915,r:"アフリカ"},
+  {n:"コンゴ民主共和国",a:2344858,p:99010,r:"アフリカ"},
+  {n:"ベトナム",a:331212,p:97468,r:"アジア"},
+  {n:"イラン",a:1648195,p:87923,r:"アジア"},
+  {n:"トルコ",a:783562,p:85341,r:"欧州"},
+  {n:"ドイツ",a:357114,p:83295,r:"欧州"},
+  {n:"タイ",a:513120,p:71702,r:"アジア"},
+  {n:"イギリス",a:243610,p:68350,r:"欧州"},
+  {n:"フランス",a:551695,p:68170,r:"欧州"},
+  {n:"タンザニア",a:945087,p:65498,r:"アフリカ"},
+  {n:"ケニア",a:580367,p:55101,r:"アフリカ"},
+  {n:"コロンビア",a:1141748,p:51874,r:"南米"},
+  {n:"韓国",a:100210,p:51713,r:"アジア"},
+  {n:"ウガンダ",a:241038,p:48582,r:"アフリカ"},
+  {n:"スペイン",a:505990,p:47422,r:"欧州"},
+  {n:"アルゼンチン",a:2780400,p:45773,r:"南米"},
+  {n:"アルジェリア",a:2381741,p:45606,r:"アフリカ"},
+  {n:"スーダン",a:1861484,p:45658,r:"アフリカ"},
+  {n:"ウクライナ",a:603550,p:43531,r:"欧州"},
+  {n:"イラク",a:438317,p:42164,r:"アジア"},
+  {n:"アフガニスタン",a:652230,p:42240,r:"アジア"},
+  {n:"ポーランド",a:312696,p:41026,r:"欧州"},
+  {n:"モロッコ",a:446550,p:37840,r:"アフリカ"},
+  {n:"アンゴラ",a:1246700,p:35589,r:"アフリカ"},
+  {n:"ウズベキスタン",a:448978,p:35300,r:"アジア"},
+  {n:"カナダ",a:9984670,p:38781,r:"北米"},
+  {n:"サウジアラビア",a:2149690,p:36408,r:"アジア"},
+  {n:"イエメン",a:527968,p:33697,r:"アジア"},
+  {n:"マレーシア",a:329847,p:33574,r:"アジア"},
+  {n:"ペルー",a:1285216,p:33358,r:"南米"},
+  {n:"ガーナ",a:238533,p:33476,r:"アフリカ"},
+  {n:"モザンビーク",a:801590,p:32790,r:"アフリカ"},
+  {n:"ネパール",a:147181,p:30034,r:"アジア"},
+  {n:"マダガスカル",a:587041,p:28916,r:"アフリカ"},
+  {n:"カメルーン",a:475442,p:27915,r:"アフリカ"},
+  {n:"ベネズエラ",a:912050,p:28302,r:"南米"},
+  {n:"コートジボワール",a:322463,p:27478,r:"アフリカ"},
+  {n:"ニジェール",a:1267000,p:26207,r:"アフリカ"},
+  {n:"北朝鮮",a:120538,p:25971,r:"アジア"},
+  {n:"オーストラリア",a:7692024,p:26439,r:"オセアニア"},
+  {n:"マリ",a:1240192,p:22414,r:"アフリカ"},
+  {n:"スリランカ",a:65610,p:21893,r:"アジア"},
+  {n:"シリア",a:185180,p:21324,r:"アジア"},
+  {n:"チリ",a:756102,p:19629,r:"南米"},
+  {n:"カザフスタン",a:2724900,p:19197,r:"アジア"},
+  {n:"ルーマニア",a:238397,p:19041,r:"欧州"},
+  {n:"グアテマラ",a:108889,p:17844,r:"北米"},
+  {n:"チャド",a:1284000,p:17414,r:"アフリカ"},
+  {n:"セネガル",a:196722,p:17316,r:"アフリカ"},
+  {n:"ソマリア",a:637657,p:17154,r:"アフリカ"},
+  {n:"カンボジア",a:181035,p:16718,r:"アジア"},
+  {n:"ジンバブエ",a:390757,p:15092,r:"アフリカ"},
+  {n:"ギニア",a:245857,p:13531,r:"アフリカ"},
+  {n:"ルワンダ",a:26338,p:14256,r:"アフリカ"},
+  {n:"ベナン",a:112622,p:13353,r:"アフリカ"},
+  {n:"ブルンジ",a:27834,p:13238,r:"アフリカ"},
+  {n:"ボリビア",a:1098581,p:12388,r:"南米"},
+  {n:"チュニジア",a:163610,p:12211,r:"アフリカ"},
+  {n:"南スーダン",a:619745,p:10913,r:"アフリカ"},
+  {n:"ハイチ",a:27750,p:11470,r:"北米"},
+  {n:"ベルギー",a:30528,p:11590,r:"欧州"},
+  {n:"ドミニカ共和国",a:48671,p:11333,r:"北米"},
+  {n:"チェコ",a:78866,p:10900,r:"欧州"},
+  {n:"スウェーデン",a:450295,p:10551,r:"欧州"},
+  {n:"パプアニューギニア",a:462840,p:10330,r:"オセアニア"},
+  {n:"ハンガリー",a:93028,p:10156,r:"欧州"},
+  {n:"アゼルバイジャン",a:86600,p:10139,r:"アジア"},
+  {n:"ヨルダン",a:89342,p:10269,r:"アジア"},
+  {n:"ポルトガル",a:92212,p:10247,r:"欧州"},
+  {n:"ギリシャ",a:131957,p:10341,r:"欧州"},
+  {n:"タジキスタン",a:143100,p:9952,r:"アジア"},
+  {n:"アラブ首長国連邦",a:83600,p:9282,r:"アジア"},
+  {n:"オーストリア",a:83871,p:9042,r:"欧州"},
+  {n:"ホンジュラス",a:112492,p:10280,r:"北米"},
+  {n:"スイス",a:41285,p:8796,r:"欧州"},
+  {n:"トーゴ",a:56785,p:8644,r:"アフリカ"},
+  {n:"シエラレオネ",a:71740,p:8605,r:"アフリカ"},
+  {n:"ラオス",a:236800,p:7634,r:"アジア"},
+  {n:"キルギス",a:199951,p:6991,r:"アジア"},
+  {n:"ニカラグア",a:130373,p:6948,r:"北米"},
+  {n:"セルビア",a:77474,p:6642,r:"欧州"},
+  {n:"エルサルバドル",a:21041,p:6364,r:"北米"},
+  {n:"トルクメニスタン",a:488100,p:6117,r:"アジア"},
+  {n:"コンゴ共和国",a:342000,p:5836,r:"アフリカ"},
+  {n:"中央アフリカ",a:622984,p:5742,r:"アフリカ"},
+  {n:"リベリア",a:111369,p:5418,r:"アフリカ"},
+  {n:"コスタリカ",a:51100,p:5213,r:"北米"},
+  {n:"レバノン",a:10452,p:5353,r:"アジア"},
+  {n:"モーリタニア",a:1030700,p:4615,r:"アフリカ"},
+  {n:"クウェート",a:17818,p:4859,r:"アジア"},
+  {n:"オマーン",a:309500,p:4644,r:"アジア"},
+  {n:"パナマ",a:75417,p:4352,r:"北米"},
+  {n:"アイルランド",a:70273,p:5123,r:"欧州"},
+  {n:"ニュージーランド",a:270467,p:5123,r:"オセアニア"},
+  {n:"クロアチア",a:56594,p:3871,r:"欧州"},
+  {n:"エリトリア",a:117600,p:3748,r:"アフリカ"},
+  {n:"ジョージア",a:69700,p:3728,r:"アジア"},
+  {n:"ウルグアイ",a:176215,p:3423,r:"南米"},
+  {n:"モルドバ",a:33846,p:3272,r:"欧州"},
+  {n:"ボスニア・ヘルツェゴビナ",a:51197,p:3210,r:"欧州"},
+  {n:"リビア",a:1759540,p:7062,r:"アフリカ"},
+  {n:"パラグアイ",a:406752,p:7360,r:"南米"},
+  {n:"アルメニア",a:29743,p:2778,r:"アジア"},
+  {n:"アルバニア",a:28748,p:2832,r:"欧州"},
+  {n:"ジャマイカ",a:10991,p:2825,r:"北米"},
+  {n:"カタール",a:11586,p:2716,r:"アジア"},
+  {n:"ガンビア",a:11300,p:2640,r:"アフリカ"},
+  {n:"ナミビア",a:824292,p:2588,r:"アフリカ"},
+  {n:"ボツワナ",a:581730,p:2588,r:"アフリカ"},
+  {n:"ギニアビサウ",a:36125,p:2150,r:"アフリカ"},
+  {n:"北マケドニア",a:25713,p:2085,r:"欧州"},
+  {n:"スロベニア",a:20273,p:2117,r:"欧州"},
+  {n:"ガボン",a:267668,p:2388,r:"アフリカ"},
+  {n:"レソト",a:30355,p:2281,r:"アフリカ"},
+  {n:"ラトビア",a:64589,p:1831,r:"欧州"},
+  {n:"赤道ギニア",a:28051,p:1674,r:"アフリカ"},
+  {n:"リトアニア",a:65300,p:2718,r:"欧州"},
+  {n:"バーレーン",a:765,p:1463,r:"アジア"},
+  {n:"東ティモール",a:14874,p:1341,r:"アジア"},
+  {n:"エストニア",a:45228,p:1322,r:"欧州"},
+  {n:"キプロス",a:9251,p:1251,r:"欧州"},
+  {n:"エスワティニ",a:17364,p:1202,r:"アフリカ"},
+  {n:"イタリア",a:301340,p:58761,r:"欧州"},
+  {n:"オランダ",a:41543,p:17890,r:"欧州"},
+  {n:"ブルガリア",a:110879,p:6458,r:"欧州"},
+  {n:"キューバ",a:109884,p:11089,r:"北米"},
+  {n:"ベリーズ",a:22966,p:411,r:"北米"},
+  {n:"サントメ・プリンシペ",a:964,p:231,r:"アフリカ"},
+  {n:"セントビンセント・グレナディーン",a:389,p:103,r:"北米"},
+  {n:"パレスチナ",a:6020,p:5371,r:"アジア"},
+  {n:"ジブチ",a:23200,p:1136,r:"アフリカ"},
+  {n:"フィジー",a:18272,p:930,r:"オセアニア"},
+  {n:"コモロ",a:2235,p:852,r:"アフリカ"},
+  {n:"ガイアナ",a:214969,p:813,r:"南米"},
+  {n:"ブータン",a:38394,p:787,r:"アジア"},
+  {n:"ソロモン諸島",a:28896,p:720,r:"オセアニア"},
+  {n:"モンゴル",a:1564116,p:3398,r:"アジア"},
+  {n:"マケドニア",a:25713,p:2085,r:"欧州"},
+  {n:"スリナム",a:163820,p:623,r:"南米"},
+  {n:"ルクセンブルク",a:2586,p:672,r:"欧州"},
+  {n:"モンテネグロ",a:13812,p:627,r:"欧州"},
+  {n:"カーボベルデ",a:4033,p:568,r:"アフリカ"},
+  {n:"マルタ",a:316,p:535,r:"欧州"},
+  {n:"モルディブ",a:298,p:521,r:"アジア"},
+  {n:"スコバキア",a:49035,p:5795,r:"欧州"},
+  {n:"ブルネイ",a:5765,p:452,r:"アジア"},
+  {n:"バハマ",a:13943,p:400,r:"北米"},
+  {n:"アイスランド",a:103000,p:372,r:"欧州"},
+  {n:"バヌアツ",a:12189,p:327,r:"オセアニア"},
+  {n:"バルバドス",a:430,p:282,r:"北米"},
+  {n:"サモア",a:2842,p:222,r:"オセアニア"},
+  {n:"セントルシア",a:616,p:180,r:"北米"},
+  {n:"キリバス",a:811,p:119,r:"オセアニア"},
+  {n:"グレナダ",a:344,p:125,r:"北米"},
+  {n:"トンガ",a:747,p:100,r:"オセアニア"},
+  {n:"マイクロネシア",a:702,p:115,r:"オセアニア"},
+  {n:"セーシェル",a:455,p:107,r:"アフリカ"},
+  {n:"アンティグア・バーブーダ",a:442,p:94,r:"北米"},
+  {n:"アンドラ",a:468,p:80,r:"欧州"},
+  {n:"ドミニカ",a:751,p:73,r:"北米"},
+  {n:"マーシャル諸島",a:181,p:42,r:"オセアニア"},
+  {n:"セントクリストファー・ネービス",a:261,p:47,r:"北米"},
+  {n:"リヒテンシュタイン",a:160,p:39,r:"欧州"},
+  {n:"モナコ",a:2,p:36,r:"欧州"},
+  {n:"サンマリノ",a:61,p:34,r:"欧州"},
+  {n:"パラオ",a:459,p:18,r:"オセアニア"},
+  {n:"ツバル",a:26,p:11,r:"オセアニア"},
+  {n:"ナウル",a:21,p:10,r:"オセアニア"},
+  {n:"バチカン",a:0.44,p:1,r:"欧州"},
+  {n:"マラウイ",a:118484,p:20405,r:"アフリカ"},
+  {n:"ザンビア",a:752618,p:20018,r:"アフリカ"},
+  {n:"エクアドル",a:283561,p:18001,r:"南米"},
+  {n:"イスラエル",a:20770,p:9174,r:"アジア"},
+  {n:"ベラルーシ",a:207600,p:9498,r:"欧州"},
+  {n:"シンガポール",a:728,p:5918,r:"アジア"},
+  {n:"デンマーク",a:43094,p:5910,r:"欧州"},
+  {n:"フィンランド",a:338145,p:5545,r:"欧州"},
+  {n:"ノルウェー",a:385207,p:5474,r:"欧州"},
+  {n:"ミャンマー",a:676578,p:54409,r:"アジア"},
+  {n:"南アフリカ",a:1219090,p:59893,r:"アフリカ"},
+  {n:"スロバキア",a:49035,p:5795,r:"欧州"},
+  {n:"トリニダード・トバゴ",a:5130,p:1534,r:"北米"},
+];
+const JP_REGIONS = [
+  {name:'本州',   area:227942, pop:104352},
+  {name:'北海道', area:83424,  pop:5228},
+  {name:'九州',   area:44511,  pop:14259},
+  {name:'四国',   area:18803,  pop:3701},
+  {name:'広島県', area:8479,   pop:2800},
+  {name:'広島市', area:907,    pop:1200},
+];
+
+
+const JAPAN_AREA = 377915;
+const COLORS = {
+  'アジア':   '#f97316',
+  '欧州':     '#3b82f6',
+  'アフリカ': '#22c55e',
+  '北米':     '#a855f7',
+  '南米':     '#eab308',
+  'オセアニア':'#06b6d4',
+};
+
+let activeRegions = new Set(Object.keys(COLORS));
+let activeJpRegions = new Set();
+let scaleMode = 'km2';
+let blinkOn = true;
+let selectedCountries = new Set(); // クリックで選択した国
+setInterval(() => { blinkOn = !blinkOn; draw(); }, 500);
+
+// 固定軸パラメータ（全195カ国の範囲）
+const X_MIN_KM = -0.56, X_MAX_KM = 7.63;
+const X_MIN_JP = -6.34, X_MAX_JP = 2.06;
+const Y_MIN = -0.40,    Y_MAX = 6.56;
+
+function xVal(area) {
+  const v = scaleMode === 'japan' ? area / JAPAN_AREA : area;
+  return Math.log10(Math.max(v, 1e-9));
+}
+function xMin() { return scaleMode === 'japan' ? X_MIN_JP : X_MIN_KM; }
+function xMax() { return scaleMode === 'japan' ? X_MAX_JP : X_MAX_KM; }
+
+// ---- UI構築 ----
+function buildUI() {
+  // フィルターボタン
+  const fb = document.getElementById('filter-btns');
+  fb.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;align-items:center;';
+  Object.entries(COLORS).forEach(([r,c]) => {
+    const cnt = RAW.filter(d=>d.r===r).length;
+    const btn = document.createElement('button');
+    btn.className = 'fbtn';
+    btn.textContent = r + ' ' + cnt;
+    btn.style.background = c+'28'; btn.style.color = c;
+    btn.style.boxShadow = '0 0 0 1.5px '+c;
+    btn.onclick = () => {
+      if (activeRegions.has(r) && activeRegions.size > 1) activeRegions.delete(r);
+      else activeRegions.add(r);
+      btn.style.background = activeRegions.has(r) ? c+'28' : '#111827';
+      btn.style.color      = activeRegions.has(r) ? c : '#4b5563';
+      btn.style.boxShadow  = activeRegions.has(r) ? '0 0 0 1.5px '+c : '0 0 0 1px #1f2937';
+      draw();
+    };
+    fb.appendChild(btn);
+  });
+
+  // スケールボタン
+  const sb = document.getElementById('scale-btns');
+  sb.style.cssText = 'display:flex;gap:4px;align-items:center;';
+  [['km2','📏 km² 実数'],['japan','🇯🇵 日本＝1.0 倍率']].forEach(([mode,label]) => {
+    const btn = document.createElement('button');
+    btn.className = 'tbtn';
+    btn.id = 'tbtn_'+mode;
+    btn.textContent = label;
+    btn.style.background = scaleMode===mode ? '#3b82f6' : '#1e293b';
+    btn.style.color      = scaleMode===mode ? '#fff'    : '#64748b';
+    btn.onclick = () => {
+      scaleMode = mode;
+      document.querySelectorAll('.tbtn').forEach(b => {
+        b.style.background = b.id==='tbtn_'+mode ? '#3b82f6' : '#1e293b';
+        b.style.color      = b.id==='tbtn_'+mode ? '#fff'    : '#64748b';
+      });
+      draw();
+    };
+    sb.appendChild(btn);
+  });
+
+  // 地域参照ボタン
+  const rb = document.getElementById('region-btns');
+  const lbl = document.createElement('span');
+  lbl.textContent = '🗾 参照線:';
+  lbl.style.cssText = 'font-size:10px;color:#64748b;';
+  rb.appendChild(lbl);
+  JP_REGIONS.forEach(reg => {
+    const btn = document.createElement('button');
+    btn.className = 'rbtn';
+    btn.id = 'rbtn_'+reg.name;
+    btn.textContent = reg.name;
+    btn.style.background = '#1e293b'; btn.style.color = '#64748b';
+    btn.onclick = () => {
+      if (activeJpRegions.has(reg.name)) {
+        activeJpRegions.delete(reg.name);
+        btn.style.background = '#1e293b'; btn.style.color = '#64748b';
+        btn.style.boxShadow = 'none';
+      } else {
+        activeJpRegions.add(reg.name);
+        btn.style.background = '#ff2d5528'; btn.style.color = '#ff2d55';
+        btn.style.boxShadow = '0 0 0 1.5px #ff2d55';
+      }
+      draw();
+    };
+    rb.appendChild(btn);
+  });
+
+  // 凡例
+  const leg = document.getElementById('legend');
+  Object.entries(COLORS).forEach(([r,c]) => {
+    const d = document.createElement('div'); d.className = 'leg';
+    d.innerHTML = '<div class="dot" style="background:'+c+'"></div>'+r;
+    leg.appendChild(d);
+  });
+  const jd = document.createElement('div'); jd.className = 'leg';
+  jd.innerHTML = '<span style="color:#ff2d55;font-size:13px;">★</span>&nbsp;日本';
+  leg.appendChild(jd);
+}
+
+// ---- 描画 ----
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let PAD = { left:68, right:20, top:20, bottom:52 };
+
+function resize() {
+  const area = document.getElementById('chart-area');
+  canvas.width  = area.clientWidth;
+  canvas.height = area.clientHeight;
+  draw();
+}
+
+function toPixel(lx, ly) {
+  const W = canvas.width  - PAD.left - PAD.right;
+  const H = canvas.height - PAD.top  - PAD.bottom;
+  const px = PAD.left + (lx - xMin()) / (xMax() - xMin()) * W;
+  const py = canvas.height - PAD.bottom - (ly - Y_MIN) / (Y_MAX - Y_MIN) * H;
+  return [px, py];
+}
+
+function drawAxes() {
+  const W = canvas.width  - PAD.left - PAD.right;
+  const H = canvas.height - PAD.top  - PAD.bottom;
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+
+  // X軸グリッド・目盛り
+  const xSteps = Math.round(xMax()) - Math.round(xMin());
+  for (let i = 0; i <= xSteps; i++) {
+    const lx = Math.round(xMin()) + i;
+    if (lx < xMin() || lx > xMax()) continue;
+    const [px] = toPixel(lx, Y_MIN);
+    ctx.beginPath(); ctx.moveTo(px, PAD.top); ctx.lineTo(px, canvas.height - PAD.bottom); ctx.stroke();
+    // ラベル
+    ctx.fillStyle = '#475569'; ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const r = Math.pow(10, lx);
+    let label;
+    if (scaleMode === 'japan') {
+      if (r >= 10)      label = r.toFixed(0)+'×';
+      else if (r >= 1)  label = r.toFixed(1)+'×';
+      else {
+        const pct = r*100;
+        if (pct >= 1)        label = pct.toFixed(0)+'%';
+        else if (pct >= 0.01) label = pct.toFixed(2)+'%';
+        else                  label = pct.toFixed(4)+'%';
+      }
+    } else {
+      label = r>=1e6?(r/1e6).toFixed(0)+'M':r>=1000?(r/1000).toFixed(0)+'k':r.toFixed(0);
+    }
+    ctx.fillText(label, px, canvas.height - PAD.bottom + 4);
+  }
+
+  // Y軸グリッド・目盛り
+  for (let ly = Math.ceil(Y_MIN); ly <= Math.floor(Y_MAX); ly++) {
+    const [, py] = toPixel(xMin(), ly);
+    ctx.beginPath(); ctx.moveTo(PAD.left, py); ctx.lineTo(canvas.width - PAD.right, py); ctx.stroke();
+    ctx.fillStyle = '#475569'; ctx.font = '9px sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const pop = Math.pow(10, ly);
+    const label = pop>=1e6?(pop/1e6).toFixed(0)+'億':pop>=1e3?(pop/1e3).toFixed(0)+'百万':pop.toFixed(0)+'千';
+    ctx.fillText(label, PAD.left - 4, py);
+  }
+
+  // 軸線
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(PAD.left, PAD.top, W, H);
+
+  // 軸タイトル
+  ctx.fillStyle = '#475569'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(scaleMode==='japan'?'面積（日本＝1.0）— 対数スケール':'面積 (km²) — 対数スケール',
+               PAD.left + W/2, canvas.height - 8);
+  ctx.save(); ctx.translate(12, PAD.top + H/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('人口（千人）— 対数スケール', 0, 0); ctx.restore();
+}
+
+function drawPoints() {
+  const search = document.getElementById('search').value.trim();
+
+  // 全国を表示（地域フィルターのみ適用）
+  RAW.forEach(d => {
+    if (d.n === '日本') return;
+    if (!activeRegions.has(d.r)) return;
+    const lx = xVal(d.a);
+    const ly = Math.log10(Math.max(d.p, 0.5));
+    if (lx < xMin() || lx > xMax() || ly < Y_MIN || ly > Y_MAX) return;
+    const [px, py] = toPixel(lx, ly);
+
+    const isMatch = search !== '' && d.n.includes(search);
+    const isSearching = search !== '';
+
+    const isSelected = selectedCountries.has(d.n);
+
+    if (isSelected) {
+      // クリック選択：常に強調表示＋国名ラベル
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI*2);
+      ctx.fillStyle = COLORS[d.r];
+      ctx.fill();
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#00000088';
+      ctx.shadowBlur = 3;
+      ctx.fillText(d.n, px+10, py);
+      ctx.shadowBlur = 0;
+    } else if (isMatch) {
+      // 検索一致：点滅（大きめ・明るく）
+      if (blinkOn) {
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI*2);
+        ctx.fillStyle = COLORS[d.r];
+        ctx.fill();
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(d.n, px+10, py);
+      }
+    } else {
+      // 通常表示
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI*2);
+      ctx.fillStyle = COLORS[d.r]+'bb';
+      ctx.fill();
+    }
+  });
+}
+
+function drawJapan() {
+  const japan = RAW.find(d=>d.n==='日本');
+  if (!japan) return;
+  if (!activeRegions.has('アジア')) return;
+  const [px, py] = toPixel(xVal(japan.a), Math.log10(japan.p));
+  const isSelected = selectedCountries.has('日本');
+  ctx.font = 'bold 22px serif';
+  ctx.fillStyle = '#ff2d55';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#ff2d5588'; ctx.shadowBlur = 8;
+  ctx.fillText('★', px, py);
+  ctx.shadowBlur = 0;
+  if (isSelected) {
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#00000088'; ctx.shadowBlur = 3;
+    ctx.fillText('日本', px+14, py);
+    ctx.shadowBlur = 0;
+  }
+}
+
+function drawJapanLine() {
+  if (scaleMode !== 'japan') return;
+  const [px] = toPixel(0, Y_MIN);
+  ctx.save();
+  ctx.setLineDash([5,4]);
+  ctx.strokeStyle = '#ff2d5577'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(px, PAD.top); ctx.lineTo(px, canvas.height - PAD.bottom); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ff2d55aa'; ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('日本', px, PAD.top + 2);
+  ctx.restore();
+}
+
+function drawJpRegions() {
+  activeJpRegions.forEach(name => {
+    const reg = JP_REGIONS.find(r=>r.name===name);
+    if (!reg) return;
+    const lx = xVal(reg.area);
+    const ly = Math.log10(Math.max(reg.pop, 0.5));
+    const [rx, ry] = toPixel(lx, ly);
+
+    // 縦点線（日本スケール時のみ）
+    if (scaleMode === 'japan') {
+      ctx.save();
+      ctx.setLineDash([4,3]);
+      ctx.strokeStyle = '#ff2d5599'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(rx, PAD.top); ctx.lineTo(rx, canvas.height - PAD.bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ff2d55cc'; ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(name, rx, PAD.top + 2);
+      ctx.restore();
+    }
+
+    // ★マーク
+    ctx.font = 'bold 18px serif';
+    ctx.fillStyle = '#ff2d55';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#ff2d5577'; ctx.shadowBlur = 6;
+    ctx.fillText('★', rx, ry);
+    ctx.shadowBlur = 0;
+
+    // 地域名ラベル
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = '#ff2d55';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(name, rx + 12, ry);
+  });
+}
+
+function drawInfo() {
+  const search = document.getElementById('search').value;
+  const cnt = RAW.filter(d => activeRegions.has(d.r)).length;
+  const modeLabel = scaleMode==='japan'?'面積（日本＝1.0）':'面積 (km²)';
+  document.getElementById('info').textContent =
+    '表示中: '+cnt+'カ国　X軸＝'+modeLabel+' — 対数スケール　Y軸＝人口（千人、UN2023推計）';
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawAxes();
+  drawPoints();
+  drawJapanLine();
+  drawJpRegions();
+  drawJapan();
+  drawInfo();
+}
+
+// ---- ツールチップ ----
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const tip = document.getElementById('tooltip');
+
+  // 日本地域の★チェック
+  if (activeJpRegions.size > 0) {
+    let found = null;
+    activeJpRegions.forEach(name => {
+      const reg = JP_REGIONS.find(r=>r.name===name);
+      if (!reg) return;
+      const [rx,ry] = toPixel(xVal(reg.area), Math.log10(reg.pop));
+      if (Math.hypot(mx-rx, my-ry) < 16) found = reg;
+    });
+    if (found) {
+      const ratio = found.area / JAPAN_AREA;
+      const ratioStr = ratio>=1?ratio.toFixed(2)+'倍'
+        :(ratio*100>=1)?(ratio*100).toFixed(2)+'%':(ratio*100).toFixed(4)+'%';
+      const popStr = found.pop>=1000?(found.pop/1000).toFixed(2)+'百万人':found.pop.toFixed(0)+'千人';
+      tip.innerHTML =
+        '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">★ '+found.name+'</div>'+
+        '<div style="color:#ff2d55;font-size:10px;margin-bottom:8px;">日本の参照地域</div>'+
+        '<div>📐 面積: <b>'+found.area.toLocaleString()+' km²</b></div>'+
+        '<div style="margin-top:2px;">　　（日本比: <b>'+ratioStr+'</b>）</div>'+
+        '<div style="margin-top:4px;">👥 人口: <b>'+popStr+'</b></div>';
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX+14)+'px';
+      tip.style.top  = (e.clientY-10)+'px';
+      canvas.style.cursor = 'pointer';
+      return;
+    }
+  }
+
+  // 国データのツールチップ
+  const search = document.getElementById('search').value;
+  const filtered = RAW.filter(d => activeRegions.has(d.r));
+  let closest = null, minDist = 12;
+  filtered.forEach(d => {
+    const lx = xVal(d.a);
+    const ly = Math.log10(Math.max(d.p, 0.5));
+    const [px,py] = toPixel(lx, ly);
+    const dist = Math.hypot(mx-px, my-py);
+    if (dist < minDist) { minDist = dist; closest = d; }
+  });
+
+  if (closest) {
+    const d = closest;
+    const p = d.p>=1000000?(d.p/1000000).toFixed(2)+'億人':d.p>=1000?(d.p/1000).toFixed(2)+'百万人':d.p.toFixed(0)+'千人';
+    const ratio = d.a / JAPAN_AREA;
+    const aStr = scaleMode==='japan'
+      ? '面積: '+(ratio>=1?ratio.toFixed(2)+'倍':(ratio*100>=1)?(ratio*100).toFixed(2)+'%':(ratio*100).toFixed(4)+'%')+
+        '（'+d.a.toLocaleString()+' km²）'
+      : '面積: '+d.a.toLocaleString()+' km²';
+    tip.innerHTML =
+      '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">'+d.n+'（'+d.r+'）</div>'+
+      '<div>'+aStr+'</div>'+
+      '<div style="margin-top:4px;">👥 人口: <b>'+p+'</b></div>';
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX+14)+'px';
+    tip.style.top  = (e.clientY-10)+'px';
+    canvas.style.cursor = 'crosshair';
+  } else {
+    tip.style.display = 'none';
+    canvas.style.cursor = 'default';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  document.getElementById('tooltip').style.display = 'none';
+});
+
+// クリックで国を選択/解除
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  // 日本地域★のクリックは無視
+  let jpHit = false;
+  activeJpRegions.forEach(name => {
+    const reg = JP_REGIONS.find(r=>r.name===name);
+    if (!reg) return;
+    const [rx,ry] = toPixel(xVal(reg.area), Math.log10(reg.pop));
+    if (Math.hypot(mx-rx, my-ry) < 16) jpHit = true;
+  });
+  if (jpHit) return;
+
+  // 最も近い国を探す
+  let closest = null, minDist = 12;
+  RAW.forEach(d => {
+    if (!activeRegions.has(d.r)) return;
+    if (d.n === '日本') return;
+    const lx = xVal(d.a);
+    const ly = Math.log10(Math.max(d.p, 0.5));
+    const [px,py] = toPixel(lx, ly);
+    const dist = Math.hypot(mx-px, my-py);
+    if (dist < minDist) { minDist = dist; closest = d; }
+  });
+
+  // 日本★のクリック判定
+  const japan = RAW.find(d=>d.n==='日本');
+  if (japan && activeRegions.has('アジア')) {
+    const [jx,jy] = toPixel(xVal(japan.a), Math.log10(japan.p));
+    if (Math.hypot(mx-jx, my-jy) < 16) {
+      if (selectedCountries.has('日本')) selectedCountries.delete('日本');
+      else selectedCountries.add('日本');
+      draw(); return;
+    }
+  }
+
+  if (closest) {
+    if (selectedCountries.has(closest.n)) selectedCountries.delete(closest.n);
+    else selectedCountries.add(closest.n);
+    draw();
+  }
+});
+
+// ---- インフォカード ----
+function buildCards() {
+  const el = document.getElementById('cards');
+  const maxArea  = RAW.reduce((a,b) => a.a>b.a?a:b);
+  const maxPop   = RAW.reduce((a,b) => a.p>b.p?a:b);
+  const minArea  = RAW.reduce((a,b) => a.a<b.a?a:b);
+  const minPop   = RAW.reduce((a,b) => a.p<b.p?a:b);
+  const cards = [
+    ['🌍','総加盟国数', RAW.length+'カ国'],
+    ['📐','最大面積', maxArea.n+' '+maxArea.a.toLocaleString()+' km²'],
+    ['👥','最多人口', maxPop.n+' '+(maxPop.p/1000).toFixed(0)+'百万人'],
+    ['🔬','最小面積', minArea.n+' '+minArea.a+' km²'],
+  ];
+  cards.forEach(([icon,title,val]) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'background:#0d1528;border:1px solid #1e293b;border-radius:8px;padding:4px 12px;text-align:center;min-width:160px;';
+    d.innerHTML = '<div style="font-size:14px;">'+icon+'</div>'+
+                  '<div style="font-size:9px;color:#475569;">'+title+'</div>'+
+                  '<div style="font-size:11px;font-weight:700;color:#e2e8f0;">'+val+'</div>';
+    el.appendChild(d);
+  });
+}
+
+// ---- 初期化 ----
+buildUI();
+buildCards();
+resize();
+window.addEventListener('resize', resize);
+</script>
+</body>
+</html>

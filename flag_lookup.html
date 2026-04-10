@@ -7974,14 +7974,22 @@ function suggest(q) {
   const el = document.getElementById('suggest');
   if (!q.trim()) { el.innerHTML=''; return; }
   const sl = q.toLowerCase();
+  // 日本語入力かどうか判定（ひらがな・カタカナ・漢字を含む）
+  const isJa = /[\u3000-\u9FFF\uFF00-\uFFEF]/.test(q);
   const hits = db.filter(r=>r[0].startsWith(q)||r[1].toLowerCase().startsWith(sl)).slice(0,8);
-  el.innerHTML = hits.map(r=>`<span onclick="sel('${r[0]}')">${r[0]}</span>`).join('');
+  if (isJa) {
+    // 日本語入力→日本語名で候補表示
+    el.innerHTML = hits.map(r=>`<span onclick="sel('${r[0]}','${r[0]}')">${r[0]}</span>`).join('');
+  } else {
+    // 英語入力→英語名で候補表示
+    el.innerHTML = hits.map(r=>`<span onclick="sel('${r[1]}','${r[0]}')">${r[1]}</span>`).join('');
+  }
 }
 
-function sel(ja) {
-  document.getElementById('inp').value=ja;
+function sel(inputVal, ja) {
+  document.getElementById('inp').value=inputVal;
   document.getElementById('suggest').innerHTML='';
-  showFlag(ja);
+  showFlag(inputVal);
 }
 
 document.getElementById('inp').addEventListener('keydown',e=>{if(e.key==='Enter'){stopAll(); showFlag(e.target.value);}});

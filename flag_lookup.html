@@ -12,8 +12,6 @@ h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 1.5rem; }
 #row { display: flex; gap: 8px; margin-bottom: 8px; }
 #inp { flex: 1; font-size: 15px; padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; background: #fff; outline: none; }
 #inp:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px #eff6ff; }
-#btn { font-size: 14px; padding: 10px 18px; border-radius: 10px; border: none; background: #3b82f6; color: #fff; cursor: pointer; font-weight: 500; }
-#btn:hover { background: #2563eb; }
 .mic-btn { font-size: 14px; padding: 10px 12px; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s; font-weight: 500; }
 #mic-ja { background: #e0f2fe; color: #0369a1; }
 #mic-ja:hover { background: #bae6fd; }
@@ -40,8 +38,7 @@ h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 1.5rem; }
 <div id="wrap">
   <h1>🌍 国旗ルックアップ <span style="font-size:13px;font-weight:400;color:#999">197か国・正式縦横比対応</span></h1>
   <div id="row">
-    <input id="inp" type="text" placeholder="国名を入力（日本語・英語）" autocomplete="off" />
-    <button id="btn">表示</button>
+    <input id="inp" type="text" placeholder="国名を入力してEnter（日本語・英語）" autocomplete="off" />
     <button id="mic-ja" class="mic-btn" title="日本語音声入力">🎤 日本語</button>
     <button id="mic-en" class="mic-btn" title="英語音声入力">🎤 English</button>
   </div>
@@ -7987,13 +7984,9 @@ function sel(ja) {
   showFlag(ja);
 }
 
-document.getElementById('btn').addEventListener('click',()=>{
-  stopAll();
-  showFlag(document.getElementById('inp').value);
-});
 document.getElementById('inp').addEventListener('keydown',e=>{if(e.key==='Enter'){stopAll(); showFlag(e.target.value);}});
 document.getElementById('inp').addEventListener('input',e=>suggest(e.target.value));
-document.getElementById('inp').addEventListener('focus',()=>{ stopAll(); });
+document.getElementById('inp').addEventListener('focus',()=>{ stopAll(); document.getElementById('inp').value=''; document.getElementById('suggest').innerHTML=''; });
 
 // 音声認識 - 日本語・英語 独立ループモード
 const micStatus = document.getElementById('mic-status');

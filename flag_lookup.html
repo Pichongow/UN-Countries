@@ -7987,9 +7987,13 @@ function sel(ja) {
   showFlag(ja);
 }
 
-document.getElementById('btn').addEventListener('click',()=>showFlag(document.getElementById('inp').value));
-document.getElementById('inp').addEventListener('keydown',e=>{if(e.key==='Enter')showFlag(e.target.value);});
+document.getElementById('btn').addEventListener('click',()=>{
+  if(typeof stopAll==='function') stopAll();
+  showFlag(document.getElementById('inp').value);
+});
+document.getElementById('inp').addEventListener('keydown',e=>{if(e.key==='Enter'){if(typeof stopAll==='function') stopAll(); showFlag(e.target.value);}});
 document.getElementById('inp').addEventListener('input',e=>suggest(e.target.value));
+document.getElementById('inp').addEventListener('focus',()=>{ if(typeof stopAll==='function') stopAll(); });
 
 // 音声認識 - 日本語・英語 独立ループモード
 const micStatus = document.getElementById('mic-status');

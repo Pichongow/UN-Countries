@@ -8003,13 +8003,15 @@ let active = false;
 let activeLang = null;
 let currentRec = null;
 let attemptCount = 0;
+let sessionId = 0; // setTimeoutの無効化用
 
 // グローバルスコープで定義（外部から呼べるように）
 function stopAll() {
+  sessionId++;      // 古いsetTimeoutを無効化
   active = false;
   activeLang = null;
   attemptCount = 0;
-  if (currentRec) { try { currentRec.stop(); } catch(e){} }
+  if (currentRec) { try { currentRec.stop(); } catch(e){} currentRec = null; }
   if (micJa) { micJa.classList.remove('listening'); micJa.textContent = '🎤 日本語'; }
   if (micEn) { micEn.classList.remove('listening'); micEn.textContent = '🎤 English'; }
 }
@@ -8052,7 +8054,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       } else {
         attemptCount++;
         micStatus.textContent = `「${transcript}」は見つかりません。もう一度どうぞ... [${attemptCount}回目]`;
-        setTimeout(() => { if (active) startRecognition(lang); }, 800);
+        const sid1=sessionId; setTimeout(() => { if (active && sessionId===sid1) startRecognition(lang); }, 800);
       }
     };
 
@@ -8065,7 +8067,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       attemptCount++;
       const label = lang === 'ja-JP' ? '日本語' : 'English';
       micStatus.textContent = `聞き取れませんでした。もう一度どうぞ（${label}）... [${attemptCount}回目]`;
-      setTimeout(() => { if (active) startRecognition(lang); }, 600);
+      const sid2=sessionId; setTimeout(() => { if (active && sessionId===sid2) startRecognition(lang); }, 600);
     };
 
     rec.onend = () => {};

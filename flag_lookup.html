@@ -8021,10 +8021,9 @@ function showFlag(q) {
         else                  ratioStr = `日本の${(ratio*100).toFixed(4)}%`;
         areaStr = `${d[0].toLocaleString()} km²　(${ratioStr})`;
       }
-      const pop = d[1] < 1000    ? `約${d[1]}人`
-                : d[1] < 10000   ? `約${Math.floor(d[1]/1000)}千人`
-                : d[1] < 1000000 ? `約${Math.floor(d[1]/10000)}万人`
-                : d[1] < 100000000 ? `約${(d[1]/1000000).toFixed(1)}百万人`
+      const pop = d[1] < 1000      ? `約${d[1]}人`
+                : d[1] < 10000     ? `約${Math.floor(d[1]/1000)}千人`
+                : d[1] < 100000000 ? `約${Math.floor(d[1]/10000)}万人`
                 : `約${(d[1]/100000000).toFixed(2)}億人`;
       document.getElementById('stats').innerHTML =
         `<span>🗺 面積: ${areaStr}</span><span>👥 人口: ${pop}</span>`;
